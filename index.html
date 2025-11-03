@@ -3,14 +3,14 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-    <title>兔兔管理（含小朋友名字 + 匯入/匯出）</title>
+    <title>客戶管理（含小朋友名字 + 匯入/匯出）</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
 
     <link rel="manifest" href="">
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="兔兔管理" />
+    <meta name="apple-mobile-web-app-title" content="客戶管理" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 
     <style>
@@ -27,6 +27,9 @@
         [contenteditable="true"] { border:1px solid #d1d5db; border-radius:.375rem; padding:.5rem .75rem; min-height:100px; background-color:#fff; }
         [contenteditable="true"]:focus { outline:none; border-color:#6366f1; box-shadow:0 0 0 2px #c7d2fe; }
     </style>
+
+  <meta name="theme-color" content="#ffffff">
+  <link rel="apple-touch-icon" href="pwa-icon.png">
 </head>
 <body class="bg-gray-100 antialiased overflow-hidden">
 
@@ -56,7 +59,7 @@
 <div id="app-screen" class="hidden">
   <header class="bg-white shadow-md sticky top-0 z-30">
     <div class="container mx-auto px-4 py-3 flex items-center justify-between">
-      <h1 class="text-xl font-bold text-indigo-700">兔兔管理</h1>
+      <h1 class="text-xl font-bold text-indigo-700">客戶管理</h1>
       <div class="flex items-center space-x-2">
         <button id="add-customer-btn" class="p-2 rounded-full text-indigo-600 hover:bg-indigo-100 transition" title="新增客戶">
           <svg class="w-6 h-6"><use href="#icon-plus"></use></svg>
@@ -642,6 +645,22 @@ function checkFollowUps() {
   }
 }
 
+// 根據「到期期數」與「今天」換算剩餘期數（依版別）
+// - 60107：每月 1 期（1 號）
+// - 60108 / 60109：每月 2 期（1 號、15 號）
+// 回傳 null 表示無法計算；否則回傳 >=0 的整數期數
+function getRemainingIssues(version, expiryIssue, refDate = new Date()) {
+  if (!version || !Number.isFinite(Number(expiryIssue))) return null;
+  try {
+    const currentIssue = getIssueFromDate(version, refDate);
+    return Math.max(0, Number(expiryIssue) - currentIssue);
+  } catch(e) {
+    console.warn('getRemainingIssues error', e);
+    return null;
+  }
+}
+
+
 function renderCallLogs(logs) {
   callLogList.innerHTML = '';
   if (!logs || logs.length === 0) {
@@ -716,6 +735,15 @@ function createCustomerCard(customer) {
   // **********************************************
 
   let warningHtml = '';
+  const in5MonthsWindow = expiryDate && isExpiryWarning(expiryDate);
+  let remainingIssueBadge = '';
+  if (in5MonthsWindow && customer.startIssueVersion && Number.isFinite(Number(customer.expiryIssue))) {
+    const remain = getRemainingIssues(customer.startIssueVersion, Number(customer.expiryIssue), new Date());
+    if (remain != null && remain > 0) {
+      remainingIssueBadge = `<span class="block text-[12px] font-bold text-orange-700 bg-orange-100 px-2 py-1 rounded-full mb-2">剩餘 ${remain} 期</span>`;
+    }
+  }
+
   if (expiryDate && isExpiryWarning(expiryDate)) {
     warningHtml = `<span class="block text-sm font-bold text-pink-600 bg-pink-100 px-2 py-1 rounded-full mb-2">即將到期</span>`;
     card.classList.add('border-2','border-pink-500','ring-2','ring-pink-200');
@@ -724,6 +752,7 @@ function createCustomerCard(customer) {
   const childHtml = customer.childName ? ` <span class="text-indigo-600">👶 ${escapeHtml(customer.childName)}</span>` : '';
   card.innerHTML = `
     ${warningHtml}
+    ${remainingIssueBadge}
     <h3 class="text-lg font-bold text-gray-800 truncate">${escapeHtml(customer.name)}${childHtml}</h3>
     <p class="text-sm text-gray-600 mt-1 truncate">${escapeHtml(customer.phone || '')}</p>
     <p class="text-xs text-gray-500 mt-1 truncate">${escapeHtml(customer.address || '') || '&nbsp;'}</p>
